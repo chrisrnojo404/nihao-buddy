@@ -1,65 +1,127 @@
-import Image from "next/image";
+import Link from "next/link";
+
+import { AppShell } from "@/components/app-shell";
+import { CharacterPracticePreview } from "@/components/character-practice-preview";
+import { FeatureCard } from "@/components/feature-card";
+import { HeroSection } from "@/components/hero-section";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { coreFeatures, learningPath, sampleVocabulary } from "@/lib/content";
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <AppShell>
+      <div className="space-y-10">
+        <HeroSection />
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {coreFeatures.map((feature) => (
+            <FeatureCard key={feature.title} {...feature} />
+          ))}
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <Card className="border-white/60 bg-white/85 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <p className="text-sm uppercase tracking-[0.28em] text-slate-500">
+                  Vocabulary Preview
+                </p>
+                <CardTitle className="mt-2 text-2xl text-slate-900">
+                  Beginner phrases you can save and review
+                </CardTitle>
+              </div>
+              <Button asChild variant="outline">
+                <Link href="/translate">Open translator</Link>
+              </Button>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              {sampleVocabulary.map((item) => (
+                <div
+                  key={item.english}
+                  className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3"
+                >
+                  <div>
+                    <p className="text-sm text-slate-500">{item.english}</p>
+                    <p className="text-2xl font-semibold text-slate-900">
+                      {item.chinese}
+                    </p>
+                  </div>
+                  <p className="text-sm font-medium text-red-700">
+                    {item.pinyin}
+                  </p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="border-white/60 bg-white/85 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+            <CardHeader>
+              <p className="text-sm uppercase tracking-[0.28em] text-slate-500">
+                Writing Practice
+              </p>
+              <CardTitle className="mt-2 text-2xl text-slate-900">
+                Practice strokes one character at a time
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <CharacterPracticePreview character="你" />
+              <p className="text-sm leading-7 text-slate-600">
+                The writing studio will split full Mandarin phrases into single
+                characters so learners can practice stroke order with Hanzi
+                Writer.
+              </p>
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+          <Card className="border-red-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(254,242,242,0.95))] text-red-950 shadow-[0_24px_80px_rgba(185,28,28,0.12)]">
+            <CardHeader>
+              <p className="text-sm uppercase tracking-[0.28em] text-red-600">
+                Phase 1 Delivered
+              </p>
+              <CardTitle className="mt-2 text-3xl">
+                Architecture ready for auth, vocabulary, and review workflows
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm leading-7 text-red-950/70">
+              <p>
+                This first pass sets up the project structure, Prisma schema,
+                JWT helpers, zod validation, the translation dictionary, and
+                the core pages we&apos;ll keep building on.
+              </p>
+              <Button asChild className="bg-red-600 text-white hover:bg-red-500">
+                <Link href="/dashboard">Explore the dashboard shell</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-white/60 bg-white/85 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+            <CardHeader>
+              <p className="text-sm uppercase tracking-[0.28em] text-slate-500">
+                Build Path
+              </p>
+              <CardTitle className="mt-2 text-2xl text-slate-900">
+                What the MVP is designed to support next
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              {learningPath.map((item, index) => (
+                <div
+                  key={item}
+                  className="flex gap-4 rounded-2xl border border-slate-200/80 px-4 py-3"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-700 text-sm font-semibold text-white">
+                    {index + 1}
+                  </span>
+                  <p className="text-sm leading-7 text-slate-600">{item}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </section>
+      </div>
+    </AppShell>
   );
 }

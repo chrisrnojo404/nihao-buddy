@@ -1,36 +1,107 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# nihao buddy
 
-## Getting Started
+nihao buddy is a Next.js App Router MVP for beginner Mandarin learners. The
+project combines translation, pinyin generation, vocabulary saving, flashcard
+review, writing practice, and lightweight progress tracking.
 
-First, run the development server:
+## Stack
+
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- shadcn/ui-style reusable components
+- Prisma ORM
+- PostgreSQL
+- bcryptjs
+- jsonwebtoken
+- zod
+- hanzi-writer
+- pinyin-pro
+
+## Setup
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Copy the environment file and update the values:
+
+```bash
+cp .env.example .env
+```
+
+3. Start PostgreSQL and create a database named `mandarin_buddy`.
+
+4. Generate the Prisma client:
+
+```bash
+npx prisma generate
+```
+
+5. Run the initial migration:
+
+```bash
+npx prisma migrate dev --name init
+```
+
+6. Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+7. Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Database migrations
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Create a new migration after schema changes:
 
-## Learn More
+```bash
+npx prisma migrate dev --name describe_your_change
+```
 
-To learn more about Next.js, take a look at the following resources:
+- Refresh the client after schema-only edits:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npx prisma generate
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Testing instructions
 
-## Deploy on Vercel
+- Run linting:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run lint
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Run a production build check:
+
+```bash
+npm run build
+```
+
+- Manual smoke test:
+  - Visit `/`, `/register`, `/login`, `/dashboard`, `/translate`, `/vocabulary`, `/writing`, and `/flashcards`.
+  - Confirm `POST /api/translate` returns Chinese text and pinyin for supported beginner phrases.
+  - After database setup, verify register/login and authenticated vocabulary/progress routes.
+
+## Current Phase 1 scope
+
+- App shell and responsive page scaffolding
+- Prisma schema for `User`, `Vocabulary`, and `Progress`
+- JWT and password helper foundation
+- zod validation modules
+- Mock translation dictionary with automatic pinyin generation
+- Hanzi Writer preview integration
+- API route scaffolding for auth, translation, vocabulary, and progress
+
+## Future improvements
+
+- Add real client-side forms for registration, login, and translation
+- Add browser `SpeechSynthesis` playback for Mandarin phrases
+- Introduce optimistic UI updates for vocabulary management
+- Add spaced repetition scheduling for flashcards
+- Add unit and integration tests for API routes and translation utilities
+- Support sentence-level translations via an external translation provider

@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  email        String       @unique
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  vocabulary   Vocabulary[]
+  progress     Progress?
+}
+
+model Vocabulary {
+  id          String   @id @default(cuid())
+  userId      String
+  englishText String
+  chineseText String
+  pinyin      String
+  notes       String?
+  mastered    Boolean  @default(false)
+  reviewCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Progress {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  totalSaved      Int       @default(0)
+  totalReviewed   Int       @default(0)
+  masteredCount   Int       @default(0)
+  streakDays      Int       @default(0)
+  lastPracticedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
