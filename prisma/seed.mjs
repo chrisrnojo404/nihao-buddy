@@ -137,6 +137,9 @@ async function seedAccount(account) {
           },
         },
       },
+      reviewLogs: {
+        deleteMany: {},
+      },
     },
     create: {
       name: account.name,
@@ -156,6 +159,58 @@ async function seedAccount(account) {
       },
     },
   });
+
+  const user = await prisma.user.findUnique({
+    where: { email: account.email },
+    select: {
+      id: true,
+      vocabulary: {
+        select: {
+          id: true,
+          englishText: true,
+          easeFactor: true,
+          intervalDays: true,
+        },
+      },
+    },
+  });
+
+  if (!user) {
+    return;
+  }
+
+  const reviewLogData = user.vocabulary.flatMap((item, index) => {
+    const baseTime = addMinutes(-(index + 1) * 40);
+
+    return [
+      {
+        userId: user.id,
+        vocabularyId: item.id,
+        rating: index % 3 === 0 ? "again" : "good",
+        previousInterval: Math.max(0, item.intervalDays - 1),
+        nextInterval: item.intervalDays,
+        previousEaseFactor: Math.max(1.3, item.easeFactor - 0.1),
+        nextEaseFactor: item.easeFactor,
+        reviewedAt: baseTime,
+      },
+      {
+        userId: user.id,
+        vocabularyId: item.id,
+        rating: index % 2 === 0 ? "hard" : "easy",
+        previousInterval: Math.max(0, item.intervalDays - 2),
+        nextInterval: item.intervalDays,
+        previousEaseFactor: Math.max(1.3, item.easeFactor - 0.2),
+        nextEaseFactor: item.easeFactor,
+        reviewedAt: addMinutes(-(index + 1) * 90),
+      },
+    ];
+  });
+
+  if (reviewLogData.length > 0) {
+    await prisma.reviewLog.createMany({
+      data: reviewLogData,
+    });
+  }
 }
 
 async function main() {

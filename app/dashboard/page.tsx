@@ -21,6 +21,34 @@ export default async function DashboardPage() {
       },
     }),
   ]);
+  let recentReviews: Array<{
+    id: string;
+    vocabularyId: string;
+    rating: string;
+    reviewedAt: Date;
+    vocabulary: {
+      englishText: string;
+      chineseText: string;
+    };
+  }> = [];
+
+  if ("reviewLog" in prisma && prisma.reviewLog) {
+    recentReviews = await prisma.reviewLog.findMany({
+      where: { userId: user.id },
+      orderBy: {
+        reviewedAt: "desc",
+      },
+      take: 12,
+      include: {
+        vocabulary: {
+          select: {
+            englishText: true,
+            chineseText: true,
+          },
+        },
+      },
+    });
+  }
   const vocabularyCount = vocabulary.length;
   const dueCards = vocabulary.filter((item) => {
     if (!item.nextReviewAt) {
@@ -43,6 +71,45 @@ export default async function DashboardPage() {
         new Date(left.nextReviewAt as Date | string).getTime() -
         new Date(right.nextReviewAt as Date | string).getTime(),
     )[0];
+  const reviewsToday = recentReviews.filter((entry) => {
+    const reviewedAt = new Date(entry.reviewedAt);
+    const today = new Date();
+
+    return (
+      reviewedAt.getFullYear() === today.getFullYear() &&
+      reviewedAt.getMonth() === today.getMonth() &&
+      reviewedAt.getDate() === today.getDate()
+    );
+  }).length;
+  const hardestWords = Object.values(
+    recentReviews.reduce<Record<string, {
+      englishText: string;
+      chineseText: string;
+      difficulty: number;
+      reviews: number;
+    }>>((accumulator, entry) => {
+      const key = entry.vocabularyId;
+      const score =
+        entry.rating === "again" ? 3 : entry.rating === "hard" ? 2 : 0;
+
+      if (!accumulator[key]) {
+        accumulator[key] = {
+          englishText: entry.vocabulary.englishText,
+          chineseText: entry.vocabulary.chineseText,
+          difficulty: 0,
+          reviews: 0,
+        };
+      }
+
+      accumulator[key].difficulty += score;
+      accumulator[key].reviews += 1;
+
+      return accumulator;
+    }, {}),
+  )
+    .filter((entry) => entry.difficulty > 0)
+    .sort((left, right) => right.difficulty - left.difficulty || right.reviews - left.reviews)
+    .slice(0, 3);
 
   const dashboardMetrics = [
     {
@@ -59,6 +126,11 @@ export default async function DashboardPage() {
       label: "Mastered",
       value: String(progress.masteredCount),
       description: "Longer review intervals now drive mastery rather than a manual toggle alone.",
+    },
+    {
+      label: "Reviewed today",
+      value: String(reviewsToday),
+      description: "Recent flashcard sessions now feed directly into your daily activity analytics.",
     },
   ];
 
@@ -78,7 +150,7 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {dashboardMetrics.map((metric) => (
             <Card
               key={metric.label}
@@ -122,6 +194,85 @@ export default async function DashboardPage() {
             </p>
           </CardContent>
         </Card>
+
+        <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <Card className="border-white/60 bg-white/85 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+            <CardHeader>
+              <p className="text-sm uppercase tracking-[0.28em] text-slate-500">
+                Recent Activity
+              </p>
+              <CardTitle className="mt-2 text-3xl text-slate-950">
+                Your last review decisions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {recentReviews.length ? (
+                recentReviews.slice(0, 6).map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-slate-50/70 px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">
+                        {entry.vocabulary.englishText}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {entry.vocabulary.chineseText}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold uppercase text-red-700">
+                        {entry.rating}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {new Date(entry.reviewedAt).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm leading-7 text-slate-500">
+                  No review history yet. Complete a flashcard session to start building analytics.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-white/60 bg-white/85 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+            <CardHeader>
+              <p className="text-sm uppercase tracking-[0.28em] text-slate-500">
+                Hardest Words
+              </p>
+              <CardTitle className="mt-2 text-3xl text-slate-950">
+                Phrases that need more attention
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {hardestWords.length ? (
+                hardestWords.map((entry) => (
+                  <div
+                    key={`${entry.englishText}-${entry.chineseText}`}
+                    className="rounded-2xl border border-slate-200/80 bg-slate-50/70 px-4 py-3"
+                  >
+                    <p className="text-sm font-medium text-slate-900">
+                      {entry.englishText}
+                    </p>
+                    <p className="text-2xl font-semibold text-slate-950">
+                      {entry.chineseText}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {entry.reviews} tracked review(s), difficulty score {entry.difficulty}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm leading-7 text-slate-500">
+                  Once you rate cards as Again or Hard, they&apos;ll show up here.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </section>
       </div>
     </AppShell>
   );

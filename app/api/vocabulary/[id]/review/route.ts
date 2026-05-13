@@ -55,45 +55,58 @@ export async function POST(request: NextRequest, context: RouteContext) {
     rating: parsed.data.rating,
   });
 
-  const updatedVocabulary = await prisma.vocabulary.update({
-    where: { id },
-    data: {
-      reviewCount: schedule.reviewCount,
-      easeFactor: schedule.easeFactor,
-      intervalDays: schedule.intervalDays,
-      nextReviewAt: schedule.nextReviewAt,
-      lastReviewedAt: schedule.lastReviewedAt,
-      mastered: schedule.mastered,
-    },
-  });
-
   const streakUpdate = getUpdatedStreakDays(progress.lastPracticedAt);
   const masteredDelta =
     schedule.mastered === vocabulary.mastered ? 0 : schedule.mastered ? 1 : -1;
 
-  const updatedProgress = await prisma.progress.update({
-    where: { userId: auth.userId },
-    data: {
-      totalReviewed: {
-        increment: 1,
+  const [updatedVocabulary, updatedProgress] = await prisma.$transaction([
+    prisma.vocabulary.update({
+      where: { id },
+      data: {
+        reviewCount: schedule.reviewCount,
+        easeFactor: schedule.easeFactor,
+        intervalDays: schedule.intervalDays,
+        nextReviewAt: schedule.nextReviewAt,
+        lastReviewedAt: schedule.lastReviewedAt,
+        mastered: schedule.mastered,
       },
-      masteredCount:
-        masteredDelta !== 0
-          ? {
-              increment: masteredDelta,
-            }
-          : undefined,
-      streakDays:
-        streakUpdate === "increment"
-          ? {
-              increment: 1,
-            }
-          : streakUpdate === null
-            ? undefined
-            : streakUpdate,
-      lastPracticedAt: schedule.lastReviewedAt,
-    },
-  });
+    }),
+    prisma.progress.update({
+      where: { userId: auth.userId },
+      data: {
+        totalReviewed: {
+          increment: 1,
+        },
+        masteredCount:
+          masteredDelta !== 0
+            ? {
+                increment: masteredDelta,
+              }
+            : undefined,
+        streakDays:
+          streakUpdate === "increment"
+            ? {
+                increment: 1,
+              }
+            : streakUpdate === null
+              ? undefined
+              : streakUpdate,
+        lastPracticedAt: schedule.lastReviewedAt,
+      },
+    }),
+    prisma.reviewLog.create({
+      data: {
+        userId: auth.userId,
+        vocabularyId: vocabulary.id,
+        rating: parsed.data.rating,
+        previousInterval: vocabulary.intervalDays,
+        nextInterval: schedule.intervalDays,
+        previousEaseFactor: vocabulary.easeFactor,
+        nextEaseFactor: schedule.easeFactor,
+        reviewedAt: schedule.lastReviewedAt,
+      },
+    }),
+  ]);
 
   return apiSuccess({
     vocabulary: updatedVocabulary,
