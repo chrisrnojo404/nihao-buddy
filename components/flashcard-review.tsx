@@ -21,6 +21,8 @@ type VocabularyItem = {
 
 type FlashcardReviewProps = {
   vocabulary: VocabularyItem[];
+  initialCardId?: string;
+  studyMode?: "all" | "due";
   initialProgress: {
     totalReviewed: number;
     streakDays: number;
@@ -30,10 +32,38 @@ type FlashcardReviewProps = {
 
 export function FlashcardReview({
   vocabulary,
+  initialCardId,
+  studyMode = "all",
   initialProgress,
 }: FlashcardReviewProps) {
-  const [cards, setCards] = useState(vocabulary);
   const [renderedAt] = useState(() => Date.now());
+  const [cards, setCards] = useState(() => {
+    const studyQueue =
+      studyMode === "due"
+        ? vocabulary.filter((item) => {
+            const dueAt = item.nextReviewAt
+              ? new Date(item.nextReviewAt).getTime()
+              : Number.POSITIVE_INFINITY;
+            return dueAt <= renderedAt;
+          })
+        : vocabulary;
+
+    if (!initialCardId) {
+      return studyQueue;
+    }
+
+    const focusedIndex = studyQueue.findIndex((item) => item.id === initialCardId);
+
+    if (focusedIndex <= 0) {
+      return studyQueue;
+    }
+
+    return [
+      studyQueue[focusedIndex],
+      ...studyQueue.slice(0, focusedIndex),
+      ...studyQueue.slice(focusedIndex + 1),
+    ];
+  });
   const [currentIndex, setCurrentIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState("");

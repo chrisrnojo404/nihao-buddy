@@ -3,8 +3,11 @@ import { FlashcardReview } from "@/components/flashcard-review";
 import { requirePageUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-export default async function FlashcardsPage() {
+export default async function FlashcardsPage({
+  searchParams,
+}: PageProps<"/flashcards">) {
   const user = await requirePageUser();
+  const { focus, mode } = await searchParams;
   const [vocabulary, progress] = await Promise.all([
     prisma.vocabulary.findMany({
       where: { userId: user.id },
@@ -33,11 +36,15 @@ export default async function FlashcardsPage() {
 
     return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
   });
+  const focusedCardId = typeof focus === "string" ? focus : undefined;
+  const studyMode = mode === "due" ? "due" : "all";
 
   return (
     <AppShell>
       <FlashcardReview
         vocabulary={sortedVocabulary}
+        initialCardId={focusedCardId}
+        studyMode={studyMode}
         initialProgress={{
           totalReviewed: progress.totalReviewed,
           streakDays: progress.streakDays,

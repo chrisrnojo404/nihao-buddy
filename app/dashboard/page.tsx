@@ -21,11 +21,22 @@ export default async function DashboardPage() {
       },
     }),
   ]);
+
   let recentReviews: Array<{
     id: string;
     vocabularyId: string;
     rating: string;
     reviewedAt: Date;
+    vocabulary: {
+      englishText: string;
+      chineseText: string;
+    };
+  }> = [];
+  let recentWritingSessions: Array<{
+    id: string;
+    vocabularyId: string;
+    practicedCharacters: number;
+    practicedAt: Date;
     vocabulary: {
       englishText: string;
       chineseText: string;
@@ -37,6 +48,23 @@ export default async function DashboardPage() {
       where: { userId: user.id },
       orderBy: {
         reviewedAt: "desc",
+      },
+      take: 12,
+      include: {
+        vocabulary: {
+          select: {
+            englishText: true,
+            chineseText: true,
+          },
+        },
+      },
+    });
+  }
+  if ("writingSession" in prisma && prisma.writingSession) {
+    recentWritingSessions = await prisma.writingSession.findMany({
+      where: { userId: user.id },
+      orderBy: {
+        practicedAt: "desc",
       },
       take: 12,
       include: {
@@ -81,6 +109,20 @@ export default async function DashboardPage() {
       reviewedAt.getDate() === today.getDate()
     );
   }).length;
+  const writingSessionsToday = recentWritingSessions.filter((entry) => {
+    const practicedAt = new Date(entry.practicedAt);
+    const today = new Date();
+
+    return (
+      practicedAt.getFullYear() === today.getFullYear() &&
+      practicedAt.getMonth() === today.getMonth() &&
+      practicedAt.getDate() === today.getDate()
+    );
+  });
+  const writingCharactersToday = writingSessionsToday.reduce(
+    (total, entry) => total + entry.practicedCharacters,
+    0,
+  );
   const hardestWords = Object.values(
     recentReviews.reduce<Record<string, {
       englishText: string;
@@ -110,6 +152,36 @@ export default async function DashboardPage() {
     .filter((entry) => entry.difficulty > 0)
     .sort((left, right) => right.difficulty - left.difficulty || right.reviews - left.reviews)
     .slice(0, 3);
+  const mostPracticedWritingPhrases = Object.values(
+    recentWritingSessions.reduce<Record<string, {
+      englishText: string;
+      chineseText: string;
+      sessions: number;
+      practicedCharacters: number;
+    }>>((accumulator, entry) => {
+      const key = entry.vocabularyId;
+
+      if (!accumulator[key]) {
+        accumulator[key] = {
+          englishText: entry.vocabulary.englishText,
+          chineseText: entry.vocabulary.chineseText,
+          sessions: 0,
+          practicedCharacters: 0,
+        };
+      }
+
+      accumulator[key].sessions += 1;
+      accumulator[key].practicedCharacters += entry.practicedCharacters;
+
+      return accumulator;
+    }, {}),
+  )
+    .sort(
+      (left, right) =>
+        right.sessions - left.sessions ||
+        right.practicedCharacters - left.practicedCharacters,
+    )
+    .slice(0, 3);
 
   const dashboardMetrics = [
     {
@@ -128,9 +200,9 @@ export default async function DashboardPage() {
       description: "Longer review intervals now drive mastery rather than a manual toggle alone.",
     },
     {
-      label: "Reviewed today",
-      value: String(reviewsToday),
-      description: "Recent flashcard sessions now feed directly into your daily activity analytics.",
+      label: "Writing today",
+      value: String(writingSessionsToday.length),
+      description: "Phrase practice sessions from Hanzi Writer now show up in your progress story.",
     },
   ];
 
@@ -192,6 +264,8 @@ export default async function DashboardPage() {
                 ? new Date(nextDueCard.nextReviewAt).toLocaleString()
                 : "No cards yet"}
             </p>
+            <p>Review decisions today: {reviewsToday}</p>
+            <p>Characters practiced today: {writingCharactersToday}</p>
           </CardContent>
         </Card>
 
@@ -268,6 +342,85 @@ export default async function DashboardPage() {
               ) : (
                 <p className="text-sm leading-7 text-slate-500">
                   Once you rate cards as Again or Hard, they&apos;ll show up here.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+          <Card className="border-white/60 bg-white/85 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+            <CardHeader>
+              <p className="text-sm uppercase tracking-[0.28em] text-slate-500">
+                Writing Sessions
+              </p>
+              <CardTitle className="mt-2 text-3xl text-slate-950">
+                Your latest Hanzi practice
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {recentWritingSessions.length ? (
+                recentWritingSessions.slice(0, 6).map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-slate-50/70 px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">
+                        {entry.vocabulary.englishText}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {entry.vocabulary.chineseText}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-red-700">
+                        {entry.practicedCharacters} character{entry.practicedCharacters === 1 ? "" : "s"}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {new Date(entry.practicedAt).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm leading-7 text-slate-500">
+                  Log a writing practice session from the writing page and it will appear here.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-white/60 bg-white/85 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+            <CardHeader>
+              <p className="text-sm uppercase tracking-[0.28em] text-slate-500">
+                Writing Focus
+              </p>
+              <CardTitle className="mt-2 text-3xl text-slate-950">
+                Phrases you practice the most
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {mostPracticedWritingPhrases.length ? (
+                mostPracticedWritingPhrases.map((entry) => (
+                  <div
+                    key={`${entry.englishText}-${entry.chineseText}`}
+                    className="rounded-2xl border border-slate-200/80 bg-slate-50/70 px-4 py-3"
+                  >
+                    <p className="text-sm font-medium text-slate-900">
+                      {entry.englishText}
+                    </p>
+                    <p className="text-2xl font-semibold text-slate-950">
+                      {entry.chineseText}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {entry.sessions} writing session(s), {entry.practicedCharacters} characters practiced
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm leading-7 text-slate-500">
+                  Your most-practiced writing phrases will show up after a few logged sessions.
                 </p>
               )}
             </CardContent>

@@ -140,6 +140,9 @@ async function seedAccount(account) {
       reviewLogs: {
         deleteMany: {},
       },
+      writingSessions: {
+        deleteMany: {},
+      },
     },
     create: {
       name: account.name,
@@ -168,6 +171,7 @@ async function seedAccount(account) {
         select: {
           id: true,
           englishText: true,
+          chineseText: true,
           easeFactor: true,
           intervalDays: true,
         },
@@ -209,6 +213,33 @@ async function seedAccount(account) {
   if (reviewLogData.length > 0) {
     await prisma.reviewLog.createMany({
       data: reviewLogData,
+    });
+  }
+
+  const writingSessionData = user.vocabulary.flatMap((item, index) => {
+    const characterCount = Array.from(item.chineseText)
+      .filter((character) => character.trim())
+      .length;
+
+    return [
+      {
+        userId: user.id,
+        vocabularyId: item.id,
+        practicedCharacters: Math.max(characterCount, 1),
+        practicedAt: addMinutes(-(index + 1) * 55),
+      },
+      {
+        userId: user.id,
+        vocabularyId: item.id,
+        practicedCharacters: Math.max(characterCount, 1),
+        practicedAt: addMinutes(-(index + 1) * 135),
+      },
+    ];
+  });
+
+  if (writingSessionData.length > 0 && "writingSession" in prisma) {
+    await prisma.writingSession.createMany({
+      data: writingSessionData,
     });
   }
 }

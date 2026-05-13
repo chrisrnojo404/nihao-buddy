@@ -19,13 +19,23 @@ type VocabularyItem = {
 
 type WritingPracticeWorkspaceProps = {
   vocabulary: VocabularyItem[];
+  initialPhraseId?: string;
 };
 
 export function WritingPracticeWorkspace({
   vocabulary,
+  initialPhraseId,
 }: WritingPracticeWorkspaceProps) {
-  const [selectedPhraseId, setSelectedPhraseId] = useState(vocabulary[0]?.id ?? "");
+  const [selectedPhraseId, setSelectedPhraseId] = useState(
+    initialPhraseId && vocabulary.some((item) => item.id === initialPhraseId)
+      ? initialPhraseId
+      : (vocabulary[0]?.id ?? ""),
+  );
   const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isSavingSession, setIsSavingSession] = useState(false);
+  const [sessionCount, setSessionCount] = useState(0);
 
   const selectedPhrase =
     vocabulary.find((item) => item.id === selectedPhraseId) ?? vocabulary[0] ?? null;
@@ -43,6 +53,49 @@ export function WritingPracticeWorkspace({
   function choosePhrase(id: string) {
     setSelectedPhraseId(id);
     setSelectedCharacterIndex(0);
+    setStatusMessage("");
+    setErrorMessage("");
+  }
+
+  async function logWritingSession() {
+    if (!selectedPhrase) {
+      return;
+    }
+
+    setIsSavingSession(true);
+    setStatusMessage("");
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("/api/progress/writing-sessions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          vocabularyId: selectedPhrase.id,
+          practicedCharacters: Math.max(characters.length, 1),
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        setErrorMessage(payload.error ?? "Unable to record this writing session.");
+        return;
+      }
+
+      setSessionCount((current) => current + 1);
+      setStatusMessage(
+        `Saved a writing session for ${selectedPhrase.chineseText}. Dashboard analytics will reflect it now.`,
+      );
+    } catch {
+      setErrorMessage("Unable to record this writing session right now.");
+    } finally {
+      setIsSavingSession(false);
+    }
   }
 
   if (!vocabulary.length) {
@@ -80,6 +133,34 @@ export function WritingPracticeWorkspace({
             </p>
             <p className="text-sm text-red-700">{selectedPhrase?.pinyin}</p>
           </div>
+          <div className="grid gap-3 rounded-2xl border border-red-100 bg-white/75 px-4 py-4 text-sm text-slate-600 sm:grid-cols-[1fr_auto] sm:items-center">
+            <div>
+              <p className="font-medium text-red-900">
+                Practice summary
+              </p>
+              <p>
+                {characters.length} character{characters.length === 1 ? "" : "s"} in
+                this phrase. Sessions logged this visit: {sessionCount}
+              </p>
+            </div>
+            <Button
+              type="button"
+              disabled={isSavingSession || !selectedPhrase}
+              onClick={logWritingSession}
+            >
+              {isSavingSession ? "Saving..." : "Log practice session"}
+            </Button>
+          </div>
+          {statusMessage ? (
+            <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {statusMessage}
+            </p>
+          ) : null}
+          {errorMessage ? (
+            <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {errorMessage}
+            </p>
+          ) : null}
           <CharacterPracticePreview
             character={selectedCharacter}
             strokeNames={strokeNamesByCharacter[selectedCharacter] ?? []}

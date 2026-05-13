@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 type VocabularyItem = {
   id: string;
@@ -24,12 +26,27 @@ type VocabularyManagerProps = {
   initialVocabulary: VocabularyItem[];
 };
 
+type FilterKey = "all" | "due" | "learning" | "mastered" | "recent";
+type SortKey = "newest" | "nextReview" | "mostReviewed" | "hardest";
+
+const FILTER_LABELS: Record<FilterKey, string> = {
+  all: "All",
+  due: "Due now",
+  learning: "Learning",
+  mastered: "Mastered",
+  recent: "Recent",
+};
+
 export function VocabularyManager({
   initialVocabulary,
 }: VocabularyManagerProps) {
   const [items, setItems] = useState(initialVocabulary);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("newest");
+  const [renderedAt] = useState(() => Date.now());
 
   const masteredCount = useMemo(
     () => items.filter((item) => item.mastered).length,
@@ -41,11 +58,82 @@ export function VocabularyManager({
       reviewCount: item.reviewCount ?? 0,
       intervalDays: item.intervalDays ?? 0,
       easeFactor: item.easeFactor ?? 2.5,
+      createdAtTimestamp: new Date(item.createdAt).getTime(),
+      lastReviewedTimestamp: item.lastReviewedAt
+        ? new Date(item.lastReviewedAt).getTime()
+        : 0,
       nextReviewLabel: item.nextReviewAt
         ? new Date(item.nextReviewAt).toLocaleDateString()
         : "Not scheduled",
+      nextReviewTimestamp: item.nextReviewAt
+        ? new Date(item.nextReviewAt).getTime()
+        : Number.POSITIVE_INFINITY,
     };
   }
+
+  const dueCount = useMemo(
+    () =>
+      items.filter(
+        (item) => getReviewSnapshot(item).nextReviewTimestamp <= renderedAt,
+      ).length,
+    [items, renderedAt],
+  );
+
+  const visibleItems = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    const recentCutoff = renderedAt - 1000 * 60 * 60 * 24 * 7;
+
+    return [...items]
+      .filter((item) => {
+        const review = getReviewSnapshot(item);
+        const matchesQuery =
+          !normalizedQuery ||
+          item.englishText.toLowerCase().includes(normalizedQuery) ||
+          item.chineseText.toLowerCase().includes(normalizedQuery) ||
+          item.pinyin.toLowerCase().includes(normalizedQuery) ||
+          item.notes?.toLowerCase().includes(normalizedQuery);
+
+        if (!matchesQuery) {
+          return false;
+        }
+
+        switch (activeFilter) {
+          case "due":
+            return review.nextReviewTimestamp <= renderedAt;
+          case "learning":
+            return !item.mastered;
+          case "mastered":
+            return item.mastered;
+          case "recent":
+            return review.createdAtTimestamp >= recentCutoff;
+          case "all":
+          default:
+            return true;
+        }
+      })
+      .sort((left, right) => {
+        const leftReview = getReviewSnapshot(left);
+        const rightReview = getReviewSnapshot(right);
+
+        switch (sortKey) {
+          case "nextReview":
+            return leftReview.nextReviewTimestamp - rightReview.nextReviewTimestamp;
+          case "mostReviewed":
+            if (rightReview.reviewCount !== leftReview.reviewCount) {
+              return rightReview.reviewCount - leftReview.reviewCount;
+            }
+            return rightReview.lastReviewedTimestamp - leftReview.lastReviewedTimestamp;
+          case "hardest":
+            if (leftReview.easeFactor !== rightReview.easeFactor) {
+              return leftReview.easeFactor - rightReview.easeFactor;
+            }
+            return rightReview.reviewCount - leftReview.reviewCount;
+          case "newest":
+          default:
+            return rightReview.createdAtTimestamp - leftReview.createdAtTimestamp;
+        }
+      });
+  }, [activeFilter, items, query, renderedAt, sortKey]);
 
   async function removeItem(id: string) {
     setBusyId(id);
@@ -121,6 +209,9 @@ export function VocabularyManager({
             <span className="font-semibold text-red-800">{masteredCount}</span> marked
             mastered
           </p>
+          <p>
+            <span className="font-semibold text-red-800">{dueCount}</span> due now
+          </p>
         </div>
       </div>
 
@@ -131,8 +222,65 @@ export function VocabularyManager({
       ) : null}
 
       {items.length ? (
+        <>
+          <Card className="border-white/60 bg-white/85 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+            <CardContent className="space-y-4 pt-6">
+              <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search English, Chinese, pinyin, or notes"
+                  aria-label="Search vocabulary"
+                />
+                <label className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50/50 px-4 py-3 text-sm text-slate-600">
+                  <span className="font-medium text-red-900">Sort</span>
+                  <select
+                    value={sortKey}
+                    onChange={(event) => setSortKey(event.target.value as SortKey)}
+                    className="w-full bg-transparent text-sm text-slate-900 outline-none"
+                  >
+                    <option value="newest">Newest first</option>
+                    <option value="nextReview">Next review first</option>
+                    <option value="mostReviewed">Most reviewed</option>
+                    <option value="hardest">Hardest first</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(FILTER_LABELS) as FilterKey[]).map((filterKey) => (
+                  <Button
+                    key={filterKey}
+                    type="button"
+                    size="sm"
+                    variant={activeFilter === filterKey ? "default" : "outline"}
+                    onClick={() => setActiveFilter(filterKey)}
+                  >
+                    {FILTER_LABELS[filterKey]}
+                  </Button>
+                ))}
+              </div>
+
+              <div className="flex flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+                <p>
+                  Showing <span className="font-semibold text-red-800">{visibleItems.length}</span>{" "}
+                  of <span className="font-semibold text-red-800">{items.length}</span> saved items
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild size="sm">
+                    <Link href="/flashcards">Study all cards</Link>
+                  </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href="/flashcards?mode=due">Study due cards</Link>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {visibleItems.length ? (
         <div className="grid gap-4">
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const review = getReviewSnapshot(item);
 
             return (
@@ -168,6 +316,12 @@ export function VocabularyManager({
                   <p>Next due: {review.nextReviewLabel}</p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button asChild type="button" variant="outline">
+                    <Link href={`/writing?phrase=${item.id}`}>Practice this phrase</Link>
+                  </Button>
+                  <Button asChild type="button" variant="outline">
+                    <Link href={`/flashcards?focus=${item.id}`}>Review this card</Link>
+                  </Button>
                   <Button
                     type="button"
                     variant={item.mastered ? "outline" : "default"}
@@ -194,6 +348,16 @@ export function VocabularyManager({
             );
           })}
         </div>
+          ) : (
+            <Card className="border-red-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(254,242,242,0.95))] shadow-[0_24px_80px_rgba(185,28,28,0.12)]">
+              <CardContent className="py-10">
+                <p className="text-center text-sm leading-7 text-red-950/70">
+                  No vocabulary matches this search and filter combination yet.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </>
       ) : (
         <Card className="border-red-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(254,242,242,0.95))] shadow-[0_24px_80px_rgba(185,28,28,0.12)]">
           <CardContent className="py-10">
