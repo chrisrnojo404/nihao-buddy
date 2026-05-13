@@ -5,8 +5,8 @@ import { prisma } from "@/lib/prisma";
 
 export default async function DashboardPage() {
   const user = await requirePageUser();
-  const now = new Date();
-  const [progress, vocabularyCount, dueTodayCount, upcomingCount, nextDueCard] = await Promise.all([
+  const now = new Date().getTime();
+  const [progress, vocabulary] = await Promise.all([
     prisma.progress.upsert({
       where: { userId: user.id },
       update: {},
@@ -14,34 +14,35 @@ export default async function DashboardPage() {
         userId: user.id,
       },
     }),
-    prisma.vocabulary.count({
+    prisma.vocabulary.findMany({
       where: { userId: user.id },
-    }),
-    prisma.vocabulary.count({
-      where: {
-        userId: user.id,
-        nextReviewAt: {
-          lte: now,
-        },
-      },
-    }),
-    prisma.vocabulary.count({
-      where: {
-        userId: user.id,
-        nextReviewAt: {
-          gt: now,
-        },
-      },
-    }),
-    prisma.vocabulary.findFirst({
-      where: {
-        userId: user.id,
-      },
       orderBy: {
-        nextReviewAt: "asc",
+        createdAt: "desc",
       },
     }),
   ]);
+  const vocabularyCount = vocabulary.length;
+  const dueCards = vocabulary.filter((item) => {
+    if (!item.nextReviewAt) {
+      return false;
+    }
+
+    return new Date(item.nextReviewAt).getTime() <= now;
+  });
+  const upcomingCards = vocabulary.filter((item) => {
+    if (!item.nextReviewAt) {
+      return false;
+    }
+
+    return new Date(item.nextReviewAt).getTime() > now;
+  });
+  const nextDueCard = [...vocabulary]
+    .filter((item) => item.nextReviewAt)
+    .sort(
+      (left, right) =>
+        new Date(left.nextReviewAt as Date | string).getTime() -
+        new Date(right.nextReviewAt as Date | string).getTime(),
+    )[0];
 
   const dashboardMetrics = [
     {
@@ -51,7 +52,7 @@ export default async function DashboardPage() {
     },
     {
       label: "Due now",
-      value: String(dueTodayCount),
+      value: String(dueCards.length),
       description: "Cards due for review right now are ordered first in flashcard study.",
     },
     {
@@ -112,10 +113,12 @@ export default async function DashboardPage() {
           <CardContent className="grid gap-3 text-sm leading-7 text-red-950/70 md:grid-cols-2">
             <p>Total reviewed: {progress.totalReviewed}</p>
             <p>Last practiced: {progress.lastPracticedAt?.toLocaleDateString() ?? "Not yet"}</p>
-            <p>Upcoming cards: {upcomingCount}</p>
+            <p>Upcoming cards: {upcomingCards.length}</p>
             <p>
               Next scheduled review:{" "}
-              {nextDueCard ? new Date(nextDueCard.nextReviewAt).toLocaleString() : "No cards yet"}
+              {nextDueCard?.nextReviewAt
+                ? new Date(nextDueCard.nextReviewAt).toLocaleString()
+                : "No cards yet"}
             </p>
           </CardContent>
         </Card>

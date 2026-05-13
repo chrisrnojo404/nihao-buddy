@@ -13,10 +13,10 @@ type VocabularyItem = {
   notes: string | null;
   mastered: boolean;
   reviewCount: number;
-  intervalDays: number;
-  easeFactor: number;
-  nextReviewAt: string | Date;
-  lastReviewedAt: string | Date | null;
+  intervalDays?: number;
+  easeFactor?: number;
+  nextReviewAt?: string | Date;
+  lastReviewedAt?: string | Date | null;
 };
 
 type FlashcardReviewProps = {
@@ -41,9 +41,22 @@ export function FlashcardReview({
   const [progress, setProgress] = useState(initialProgress);
 
   const currentCard = cards[currentIndex] ?? null;
+  function getReviewSnapshot(card: VocabularyItem) {
+    return {
+      reviewCount: card.reviewCount ?? 0,
+      intervalDays: card.intervalDays ?? 0,
+      easeFactor: card.easeFactor ?? 2.5,
+      nextReviewLabel: card.nextReviewAt
+        ? new Date(card.nextReviewAt).toLocaleDateString()
+        : "Not scheduled",
+      nextReviewTimestamp: card.nextReviewAt
+        ? new Date(card.nextReviewAt).getTime()
+        : Number.POSITIVE_INFINITY,
+    };
+  }
   const dueCardsCount = useMemo(
     () =>
-      cards.filter((card) => new Date(card.nextReviewAt).getTime() <= renderedAt).length,
+      cards.filter((card) => getReviewSnapshot(card).nextReviewTimestamp <= renderedAt).length,
     [cards, renderedAt],
   );
   const completionRatio = useMemo(() => {
@@ -118,6 +131,8 @@ export function FlashcardReview({
     );
   }
 
+  const currentReview = currentCard ? getReviewSnapshot(currentCard) : null;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -178,14 +193,11 @@ export function FlashcardReview({
                   </p>
                 ) : null}
                 <div className="mt-5 grid gap-2 text-sm text-red-950/70 sm:grid-cols-2">
-                  <p>Interval: {currentCard?.intervalDays || 0} day(s)</p>
-                  <p>Ease factor: {currentCard?.easeFactor.toFixed(2)}</p>
-                  <p>Reviews: {currentCard?.reviewCount}</p>
+                  <p>Interval: {currentReview?.intervalDays ?? 0} day(s)</p>
+                  <p>Ease factor: {currentReview?.easeFactor.toFixed(2) ?? "2.50"}</p>
+                  <p>Reviews: {currentReview?.reviewCount ?? 0}</p>
                   <p>
-                    Next due:{" "}
-                    {currentCard
-                      ? new Date(currentCard.nextReviewAt).toLocaleDateString()
-                      : "Not scheduled"}
+                    Next due: {currentReview?.nextReviewLabel ?? "Not scheduled"}
                   </p>
                 </div>
               </div>

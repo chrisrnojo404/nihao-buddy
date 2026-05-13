@@ -13,10 +13,10 @@ type VocabularyItem = {
   notes: string | null;
   mastered: boolean;
   reviewCount: number;
-  intervalDays: number;
-  easeFactor: number;
-  nextReviewAt: string | Date;
-  lastReviewedAt: string | Date | null;
+  intervalDays?: number;
+  easeFactor?: number;
+  nextReviewAt?: string | Date;
+  lastReviewedAt?: string | Date | null;
   createdAt: string | Date;
 };
 
@@ -35,6 +35,17 @@ export function VocabularyManager({
     () => items.filter((item) => item.mastered).length,
     [items],
   );
+
+  function getReviewSnapshot(item: VocabularyItem) {
+    return {
+      reviewCount: item.reviewCount ?? 0,
+      intervalDays: item.intervalDays ?? 0,
+      easeFactor: item.easeFactor ?? 2.5,
+      nextReviewLabel: item.nextReviewAt
+        ? new Date(item.nextReviewAt).toLocaleDateString()
+        : "Not scheduled",
+    };
+  }
 
   async function removeItem(id: string) {
     setBusyId(id);
@@ -121,7 +132,10 @@ export function VocabularyManager({
 
       {items.length ? (
         <div className="grid gap-4">
-          {items.map((item) => (
+          {items.map((item) => {
+            const review = getReviewSnapshot(item);
+
+            return (
             <Card
               key={item.id}
               className="border-white/60 bg-white/85 shadow-[0_20px_60px_rgba(15,23,42,0.08)]"
@@ -148,10 +162,10 @@ export function VocabularyManager({
                   </p>
                 )}
                 <div className="grid gap-2 text-sm text-slate-500 sm:grid-cols-2">
-                  <p>Reviews: {item.reviewCount}</p>
-                  <p>Interval: {item.intervalDays} day(s)</p>
-                  <p>Ease factor: {item.easeFactor.toFixed(2)}</p>
-                  <p>Next due: {new Date(item.nextReviewAt).toLocaleDateString()}</p>
+                  <p>Reviews: {review.reviewCount}</p>
+                  <p>Interval: {review.intervalDays} day(s)</p>
+                  <p>Ease factor: {review.easeFactor.toFixed(2)}</p>
+                  <p>Next due: {review.nextReviewLabel}</p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button
@@ -177,7 +191,8 @@ export function VocabularyManager({
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <Card className="border-red-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(254,242,242,0.95))] shadow-[0_24px_80px_rgba(185,28,28,0.12)]">
