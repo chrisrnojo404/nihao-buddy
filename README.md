@@ -32,7 +32,11 @@ npm install
 cp .env.example .env
 ```
 
-3. Start PostgreSQL and create a database named `mandarin_buddy`.
+3. Start PostgreSQL with Docker:
+
+```bash
+docker compose up -d
+```
 
 4. Generate the Prisma client:
 
@@ -40,7 +44,15 @@ cp .env.example .env
 npx prisma generate
 ```
 
-5. Run the initial migration:
+5. Push the schema or run the initial migration:
+
+Quick setup:
+
+```bash
+npx prisma db push
+```
+
+Or if you want a migration file too:
 
 ```bash
 npx prisma migrate dev --name init
@@ -55,6 +67,18 @@ npm run dev
 7. Open `http://localhost:3000`.
 
 ## Database migrations
+
+- Start the database:
+
+```bash
+docker compose up -d
+```
+
+- Stop the database:
+
+```bash
+docker compose down
+```
 
 - Create a new migration after schema changes:
 
@@ -86,6 +110,28 @@ npm run build
   - Visit `/`, `/register`, `/login`, `/dashboard`, `/translate`, `/vocabulary`, `/writing`, and `/flashcards`.
   - Confirm `POST /api/translate` returns Chinese text and pinyin for supported beginner phrases.
   - After database setup, verify register/login and authenticated vocabulary/progress routes.
+
+## Demo accounts
+
+After the database schema is available, create demo accounts with:
+
+```bash
+npm run db:seed
+```
+
+Recommended full local setup:
+
+```bash
+docker compose up -d
+npx prisma db push
+npm run db:seed
+npm run dev
+```
+
+Demo login credentials:
+
+- `alicia@nihaobuddy.demo` / `DemoPass123!`
+- `ravi@nihaobuddy.demo` / `DemoPass123!`
 
 ## Current Phase 1 scope
 
