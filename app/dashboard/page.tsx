@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 
 export default async function DashboardPage() {
   const user = await requirePageUser();
-  const [progress, vocabularyCount] = await Promise.all([
+  const now = new Date();
+  const [progress, vocabularyCount, dueTodayCount, upcomingCount, nextDueCard] = await Promise.all([
     prisma.progress.upsert({
       where: { userId: user.id },
       update: {},
@@ -16,6 +17,30 @@ export default async function DashboardPage() {
     prisma.vocabulary.count({
       where: { userId: user.id },
     }),
+    prisma.vocabulary.count({
+      where: {
+        userId: user.id,
+        nextReviewAt: {
+          lte: now,
+        },
+      },
+    }),
+    prisma.vocabulary.count({
+      where: {
+        userId: user.id,
+        nextReviewAt: {
+          gt: now,
+        },
+      },
+    }),
+    prisma.vocabulary.findFirst({
+      where: {
+        userId: user.id,
+      },
+      orderBy: {
+        nextReviewAt: "asc",
+      },
+    }),
   ]);
 
   const dashboardMetrics = [
@@ -25,14 +50,14 @@ export default async function DashboardPage() {
       description: "Vocabulary total is now coming from your saved study list.",
     },
     {
-      label: "Review streak",
-      value: `${progress.streakDays} days`,
-      description: "Streaks are stored on your progress record and ready for review flows.",
+      label: "Due now",
+      value: String(dueTodayCount),
+      description: "Cards due for review right now are ordered first in flashcard study.",
     },
     {
       label: "Mastered",
       value: String(progress.masteredCount),
-      description: "Marking vocabulary as mastered now updates your dashboard totals.",
+      description: "Longer review intervals now drive mastery rather than a manual toggle alone.",
     },
   ];
 
@@ -87,6 +112,11 @@ export default async function DashboardPage() {
           <CardContent className="grid gap-3 text-sm leading-7 text-red-950/70 md:grid-cols-2">
             <p>Total reviewed: {progress.totalReviewed}</p>
             <p>Last practiced: {progress.lastPracticedAt?.toLocaleDateString() ?? "Not yet"}</p>
+            <p>Upcoming cards: {upcomingCount}</p>
+            <p>
+              Next scheduled review:{" "}
+              {nextDueCard ? new Date(nextDueCard.nextReviewAt).toLocaleString() : "No cards yet"}
+            </p>
           </CardContent>
         </Card>
       </div>

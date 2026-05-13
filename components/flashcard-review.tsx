@@ -13,6 +13,10 @@ type VocabularyItem = {
   notes: string | null;
   mastered: boolean;
   reviewCount: number;
+  intervalDays: number;
+  easeFactor: number;
+  nextReviewAt: string | Date;
+  lastReviewedAt: string | Date | null;
 };
 
 type FlashcardReviewProps = {
@@ -29,6 +33,7 @@ export function FlashcardReview({
   initialProgress,
 }: FlashcardReviewProps) {
   const [cards, setCards] = useState(vocabulary);
+  const [renderedAt] = useState(() => Date.now());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState("");
@@ -36,6 +41,11 @@ export function FlashcardReview({
   const [progress, setProgress] = useState(initialProgress);
 
   const currentCard = cards[currentIndex] ?? null;
+  const dueCardsCount = useMemo(
+    () =>
+      cards.filter((card) => new Date(card.nextReviewAt).getTime() <= renderedAt).length,
+    [cards, renderedAt],
+  );
   const completionRatio = useMemo(() => {
     if (!cards.length) {
       return 0;
@@ -46,10 +56,10 @@ export function FlashcardReview({
 
   function goToNextCard() {
     setRevealed(false);
-    setCurrentIndex((index) => (index + 1) % cards.length);
+    setCurrentIndex((index) => (index + 1) % Math.max(cards.length, 1));
   }
 
-  async function recordReview(markMastered: boolean) {
+  async function recordReview(rating: "again" | "hard" | "good" | "easy") {
     if (!currentCard) {
       return;
     }
@@ -57,65 +67,39 @@ export function FlashcardReview({
     setIsUpdating(true);
     setError("");
 
-    const nextReviewCount = currentCard.reviewCount + 1;
-    const nextTotalReviewed = progress.totalReviewed + 1;
-
     try {
-      const vocabularyResponse = await fetch(`/api/vocabulary/${currentCard.id}`, {
-        method: "PATCH",
+      const reviewResponse = await fetch(`/api/vocabulary/${currentCard.id}/review`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          reviewCount: nextReviewCount,
-          mastered: markMastered ? true : currentCard.mastered,
+          rating,
         }),
       });
 
-      const vocabularyPayload = (await vocabularyResponse.json()) as {
+      const reviewPayload = (await reviewResponse.json()) as {
         error?: string;
         data?: {
           vocabulary: VocabularyItem;
+          progress: {
+            totalReviewed: number;
+            streakDays: number;
+            masteredCount: number;
+          };
         };
       };
 
-      if (!vocabularyResponse.ok || !vocabularyPayload.data) {
-        setError(vocabularyPayload.error ?? "Unable to update this flashcard.");
+      if (!reviewResponse.ok || !reviewPayload.data) {
+        setError(reviewPayload.error ?? "Unable to update this flashcard.");
         return;
       }
 
-      const progressResponse = await fetch("/api/progress", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          totalReviewed: nextTotalReviewed,
-          lastPracticedAt: new Date().toISOString(),
-        }),
-      });
-
-      const progressPayload = (await progressResponse.json()) as {
-        error?: string;
-      };
-
-      if (!progressResponse.ok) {
-        setError(progressPayload.error ?? "Unable to update progress.");
-        return;
-      }
-
-      const updatedCard = vocabularyPayload.data.vocabulary;
+      const updatedCard = reviewPayload.data.vocabulary;
       setCards((current) =>
         current.map((item) => (item.id === updatedCard.id ? updatedCard : item)),
       );
-      setProgress((current) => ({
-        ...current,
-        totalReviewed: nextTotalReviewed,
-        masteredCount:
-          markMastered && !currentCard.mastered
-            ? current.masteredCount + 1
-            : current.masteredCount,
-      }));
+      setProgress(reviewPayload.data.progress);
       goToNextCard();
     } catch {
       setError("Unable to save your flashcard progress right now.");
@@ -151,8 +135,10 @@ export function FlashcardReview({
             reviews
           </p>
           <p>
-            <span className="font-semibold text-red-800">{completionRatio}%</span> of saved
-            cards mastered
+            <span className="font-semibold text-red-800">{dueCardsCount}</span> cards due now
+          </p>
+          <p>
+            <span className="font-semibold text-red-800">{completionRatio}%</span> mastery rate
           </p>
         </div>
       </div>
@@ -191,6 +177,17 @@ export function FlashcardReview({
                     {currentCard.notes}
                   </p>
                 ) : null}
+                <div className="mt-5 grid gap-2 text-sm text-red-950/70 sm:grid-cols-2">
+                  <p>Interval: {currentCard?.intervalDays || 0} day(s)</p>
+                  <p>Ease factor: {currentCard?.easeFactor.toFixed(2)}</p>
+                  <p>Reviews: {currentCard?.reviewCount}</p>
+                  <p>
+                    Next due:{" "}
+                    {currentCard
+                      ? new Date(currentCard.nextReviewAt).toLocaleDateString()
+                      : "Not scheduled"}
+                  </p>
+                </div>
               </div>
             ) : (
               <p className="mt-6 text-sm text-red-950/55">
@@ -209,16 +206,32 @@ export function FlashcardReview({
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button type="button" disabled={isUpdating} onClick={() => recordReview(false)}>
-              {isUpdating ? "Saving..." : "Mark reviewed"}
+            <Button type="button" disabled={isUpdating} onClick={() => recordReview("again")}>
+              {isUpdating ? "Saving..." : "Again"}
             </Button>
             <Button
               type="button"
               variant="outline"
-              disabled={isUpdating || currentCard?.mastered}
-              onClick={() => recordReview(true)}
+              disabled={isUpdating}
+              onClick={() => recordReview("hard")}
             >
-              {currentCard?.mastered ? "Already mastered" : "Mark mastered"}
+              Hard
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isUpdating}
+              onClick={() => recordReview("good")}
+            >
+              Good
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isUpdating}
+              onClick={() => recordReview("easy")}
+            >
+              Easy
             </Button>
           </div>
         </CardContent>

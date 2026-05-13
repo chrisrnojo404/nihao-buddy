@@ -13,6 +13,10 @@ type VocabularyItem = {
   notes: string | null;
   mastered: boolean;
   reviewCount: number;
+  intervalDays: number;
+  easeFactor: number;
+  nextReviewAt: string | Date;
+  lastReviewedAt: string | Date | null;
   createdAt: string | Date;
 };
 
@@ -143,6 +147,12 @@ export function VocabularyManager({
                     No notes added yet.
                   </p>
                 )}
+                <div className="grid gap-2 text-sm text-slate-500 sm:grid-cols-2">
+                  <p>Reviews: {item.reviewCount}</p>
+                  <p>Interval: {item.intervalDays} day(s)</p>
+                  <p>Ease factor: {item.easeFactor.toFixed(2)}</p>
+                  <p>Next due: {new Date(item.nextReviewAt).toLocaleDateString()}</p>
+                </div>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button
                     type="button"

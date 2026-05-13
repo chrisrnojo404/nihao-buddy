@@ -12,5 +12,9 @@ export const updateVocabularySchema = createVocabularySchema
   .partial()
   .extend({
     reviewCount: z.number().int().min(0).optional(),
+    easeFactor: z.number().min(1.3).max(3.2).optional(),
+    intervalDays: z.number().int().min(0).optional(),
+    nextReviewAt: z.coerce.date().optional(),
+    lastReviewedAt: z.coerce.date().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, "At least one field is required.");

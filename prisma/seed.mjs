@@ -2,6 +2,9 @@ import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
+const now = new Date();
+const addDays = (days) => new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+const addMinutes = (minutes) => new Date(now.getTime() + minutes * 60 * 1000);
 
 const demoAccounts = [
   {
@@ -22,6 +25,10 @@ const demoAccounts = [
         notes: "A basic greeting for everyday conversation.",
         mastered: true,
         reviewCount: 5,
+        easeFactor: 2.7,
+        intervalDays: 9,
+        nextReviewAt: addDays(-1),
+        lastReviewedAt: addDays(-10),
       },
       {
         englishText: "thank you",
@@ -30,6 +37,10 @@ const demoAccounts = [
         notes: "Useful after receiving help or a gift.",
         mastered: true,
         reviewCount: 4,
+        easeFactor: 2.6,
+        intervalDays: 7,
+        nextReviewAt: addMinutes(20),
+        lastReviewedAt: addDays(-7),
       },
       {
         englishText: "good morning",
@@ -38,6 +49,10 @@ const demoAccounts = [
         notes: "Great for polite morning greetings.",
         mastered: false,
         reviewCount: 3,
+        easeFactor: 2.4,
+        intervalDays: 1,
+        nextReviewAt: addDays(-2),
+        lastReviewedAt: addDays(-3),
       },
     ],
   },
@@ -59,6 +74,10 @@ const demoAccounts = [
         notes: "Helpful when introducing yourself at school.",
         mastered: false,
         reviewCount: 2,
+        easeFactor: 2.3,
+        intervalDays: 1,
+        nextReviewAt: addMinutes(-30),
+        lastReviewedAt: addDays(-1),
       },
       {
         englishText: "teacher",
@@ -67,6 +86,10 @@ const demoAccounts = [
         notes: "Common school vocabulary.",
         mastered: true,
         reviewCount: 3,
+        easeFactor: 2.55,
+        intervalDays: 6,
+        nextReviewAt: addDays(1),
+        lastReviewedAt: addDays(-6),
       },
       {
         englishText: "friend",
@@ -75,6 +98,10 @@ const demoAccounts = [
         notes: "Good word for social introductions.",
         mastered: false,
         reviewCount: 2,
+        easeFactor: 2.4,
+        intervalDays: 0,
+        nextReviewAt: addMinutes(-10),
+        lastReviewedAt: addDays(-2),
       },
     ],
   },

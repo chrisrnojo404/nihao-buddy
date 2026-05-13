@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
     data: {
       ...parsed.data,
       userId: auth.userId,
+      nextReviewAt: new Date(),
     },
   });
 

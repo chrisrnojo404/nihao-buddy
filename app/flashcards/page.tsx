@@ -8,8 +8,8 @@ export default async function FlashcardsPage() {
   const [vocabulary, progress] = await Promise.all([
     prisma.vocabulary.findMany({
       where: { userId: user.id },
-      orderBy: [{ mastered: "asc" }, { createdAt: "desc" }],
-      take: 12,
+      orderBy: [{ nextReviewAt: "asc" }, { mastered: "asc" }, { createdAt: "desc" }],
+      take: 20,
     }),
     prisma.progress.upsert({
       where: { userId: user.id },
