@@ -8,7 +8,9 @@ export const createVocabularySchema = z.object({
   mastered: z.boolean().optional(),
 });
 
-export const updateVocabularySchema = createVocabularySchema.partial().refine(
-  (value) => Object.keys(value).length > 0,
-  "At least one field is required.",
-);
+export const updateVocabularySchema = createVocabularySchema
+  .partial()
+  .extend({
+    reviewCount: z.number().int().min(0).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, "At least one field is required.");

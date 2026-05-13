@@ -13,6 +13,7 @@ type AuthField = {
   label: string;
   placeholder: string;
   type?: string;
+  minLength?: number;
 };
 
 type AuthFormCardProps = {
@@ -48,11 +49,53 @@ export function AuthFormCard({
     [fields],
   );
   const [values, setValues] = useState<Record<string, string>>(initialValues);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  function validateField(field: AuthField, value: string) {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      return `${field.label} is required.`;
+    }
+
+    if (field.type === "email") {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (!emailPattern.test(trimmed)) {
+        return "Enter a valid email address.";
+      }
+    }
+
+    if (field.minLength && trimmed.length < field.minLength) {
+      return `${field.label} must be at least ${field.minLength} characters.`;
+    }
+
+    return "";
+  }
+
+  function validateForm() {
+    const nextErrors = fields.reduce<Record<string, string>>((accumulator, field) => {
+      const message = validateField(field, values[field.id] ?? "");
+
+      if (message) {
+        accumulator[field.id] = message;
+      }
+
+      return accumulator;
+    }, {});
+
+    setFieldErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!validateForm()) {
+      return;
+    }
+
     setIsSubmitting(true);
     setError("");
 
@@ -110,7 +153,16 @@ export function AuthFormCard({
                     [field.id]: event.target.value,
                   }))
                 }
+                onBlur={() =>
+                  setFieldErrors((current) => ({
+                    ...current,
+                    [field.id]: validateField(field, values[field.id] ?? ""),
+                  }))
+                }
               />
+              {fieldErrors[field.id] ? (
+                <p className="text-sm text-red-700">{fieldErrors[field.id]}</p>
+              ) : null}
             </div>
           ))}
           {error ? (
