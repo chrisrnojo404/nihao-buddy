@@ -1,7 +1,11 @@
 import { NextRequest } from "next/server";
 
 import { apiError, apiSuccess, parseJson } from "@/lib/api";
-import { comparePassword } from "@/lib/auth";
+import {
+  AUTH_COOKIE_NAME,
+  AUTH_COOKIE_OPTIONS,
+  comparePassword,
+} from "@/lib/auth";
 import { signAuthToken } from "@/lib/jwt";
 import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validations/auth";
@@ -41,13 +45,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    response.cookies.set("token", token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
+    response.cookies.set(AUTH_COOKIE_NAME, token, AUTH_COOKIE_OPTIONS);
 
     return response;
   } catch (error) {

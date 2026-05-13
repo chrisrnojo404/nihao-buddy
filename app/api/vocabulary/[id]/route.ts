@@ -39,6 +39,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     data: parsed.data,
   });
 
+  if (typeof parsed.data.mastered === "boolean" && parsed.data.mastered !== existing.mastered) {
+    await prisma.progress.upsert({
+      where: { userId: auth.userId },
+      update: {
+        masteredCount: {
+          increment: parsed.data.mastered ? 1 : -1,
+        },
+      },
+      create: {
+        userId: auth.userId,
+        masteredCount: parsed.data.mastered ? 1 : 0,
+      },
+    });
+  }
+
   return apiSuccess({ vocabulary });
 }
 
@@ -68,10 +83,16 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       totalSaved: {
         decrement: 1,
       },
+      masteredCount: existing.mastered
+        ? {
+            decrement: 1,
+          }
+        : undefined,
     },
     create: {
       userId: auth.userId,
       totalSaved: 0,
+      masteredCount: 0,
     },
   });
 

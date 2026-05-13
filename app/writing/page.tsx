@@ -1,8 +1,11 @@
 import { AppShell } from "@/components/app-shell";
 import { CharacterPracticePreview } from "@/components/character-practice-preview";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { requirePageUser } from "@/lib/auth";
 
-export default function WritingPage() {
+export default async function WritingPage() {
+  await requirePageUser();
+
   return (
     <AppShell>
       <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">

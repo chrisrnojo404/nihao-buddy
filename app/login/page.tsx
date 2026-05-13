@@ -1,6 +1,9 @@
+import { redirectIfAuthenticated } from "@/lib/auth";
 import { AuthFormCard } from "@/components/auth-form-card";
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  await redirectIfAuthenticated();
+
   return (
     <AuthFormCard
       title="Welcome back"
@@ -13,6 +16,8 @@ export default function LoginPage() {
       footerLabel="Need an account?"
       footerHref="/register"
       footerCta="Register"
+      endpoint="/api/auth/login"
+      successHref="/dashboard"
     />
   );
 }

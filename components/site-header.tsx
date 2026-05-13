@@ -1,9 +1,13 @@
 import Link from "next/link";
 
+import { LogoutButton } from "@/components/logout-button";
 import { Button } from "@/components/ui/button";
+import { getSessionUser } from "@/lib/auth";
 import { navigationItems } from "@/lib/content";
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const user = await getSessionUser();
+
   return (
     <header className="sticky top-0 z-20 border-b border-red-100/80 bg-white/70 backdrop-blur-xl">
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
@@ -33,14 +37,23 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" className="hidden sm:inline-flex">
-            <Link href="/login">Log in</Link>
-          </Button>
-          <Button asChild>
-            <Link href="/register">Create account</Link>
-          </Button>
-        </div>
+        {user ? (
+          <div className="flex items-center gap-3">
+            <p className="hidden text-sm text-red-950/70 md:block">
+              Welcome, <span className="font-semibold text-red-800">{user.name}</span>
+            </p>
+            <LogoutButton />
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <Button asChild variant="ghost" className="hidden sm:inline-flex">
+              <Link href="/login">Log in</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/register">Create account</Link>
+            </Button>
+          </div>
+        )}
       </div>
     </header>
   );

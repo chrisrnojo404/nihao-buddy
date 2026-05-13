@@ -1,7 +1,11 @@
 import { NextRequest } from "next/server";
 
 import { apiError, apiSuccess, parseJson } from "@/lib/api";
-import { hashPassword } from "@/lib/auth";
+import {
+  AUTH_COOKIE_NAME,
+  AUTH_COOKIE_OPTIONS,
+  hashPassword,
+} from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { signAuthToken } from "@/lib/jwt";
 import { registerSchema } from "@/lib/validations/auth";
@@ -41,13 +45,7 @@ export async function POST(request: NextRequest) {
 
     const token = signAuthToken({ sub: user.id, email: user.email });
     const response = apiSuccess({ user }, 201);
-    response.cookies.set("token", token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
+    response.cookies.set(AUTH_COOKIE_NAME, token, AUTH_COOKIE_OPTIONS);
 
     return response;
   } catch (error) {

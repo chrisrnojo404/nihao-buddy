@@ -47,10 +47,16 @@ export async function POST(request: NextRequest) {
       totalSaved: {
         increment: 1,
       },
+      masteredCount: parsed.data.mastered
+        ? {
+            increment: 1,
+          }
+        : undefined,
     },
     create: {
       userId: auth.userId,
       totalSaved: 1,
+      masteredCount: parsed.data.mastered ? 1 : 0,
     },
   });
 

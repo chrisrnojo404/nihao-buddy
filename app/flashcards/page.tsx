@@ -1,8 +1,16 @@
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { sampleVocabulary } from "@/lib/content";
+import { requirePageUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
-export default function FlashcardsPage() {
+export default async function FlashcardsPage() {
+  const user = await requirePageUser();
+  const vocabulary = await prisma.vocabulary.findMany({
+    where: { userId: user.id },
+    orderBy: [{ mastered: "asc" }, { createdAt: "desc" }],
+    take: 12,
+  });
+
   return (
     <AppShell>
       <div className="space-y-8">
@@ -16,9 +24,9 @@ export default function FlashcardsPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {sampleVocabulary.map((item) => (
+          {vocabulary.map((item) => (
             <Card
-              key={item.english}
+              key={item.id}
               className="border-white/60 bg-white/85 shadow-[0_20px_60px_rgba(15,23,42,0.08)]"
             >
               <CardHeader>
@@ -26,12 +34,12 @@ export default function FlashcardsPage() {
                   Prompt
                 </p>
                 <CardTitle className="mt-2 text-2xl text-slate-950">
-                  {item.english}
+                  {item.englishText}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <p className="text-4xl font-semibold text-slate-950">
-                  {item.chinese}
+                  {item.chineseText}
                 </p>
                 <p className="text-sm font-medium text-red-700">
                   {item.pinyin}
@@ -40,6 +48,13 @@ export default function FlashcardsPage() {
             </Card>
           ))}
         </div>
+        {!vocabulary.length ? (
+          <Card className="border-red-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(254,242,242,0.95))] shadow-[0_24px_80px_rgba(185,28,28,0.12)]">
+            <CardContent className="py-10 text-center text-sm leading-7 text-red-950/70">
+              Save a few translated phrases first, then your flashcards will show up here.
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     </AppShell>
   );

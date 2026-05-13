@@ -1,6 +1,9 @@
+import { redirectIfAuthenticated } from "@/lib/auth";
 import { AuthFormCard } from "@/components/auth-form-card";
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
+  await redirectIfAuthenticated();
+
   return (
     <AuthFormCard
       title="Create your nihao buddy account"
@@ -14,6 +17,8 @@ export default function RegisterPage() {
       footerLabel="Already have an account?"
       footerHref="/login"
       footerCta="Sign in"
+      endpoint="/api/auth/register"
+      successHref="/dashboard"
     />
   );
 }
