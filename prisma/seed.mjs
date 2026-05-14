@@ -15,6 +15,7 @@ const demoAccounts = [
       totalReviewed: 12,
       masteredCount: 2,
       streakDays: 4,
+      dailyCharacterGoal: 6,
       lastPracticedAt: new Date(),
     },
     vocabulary: [
@@ -64,6 +65,7 @@ const demoAccounts = [
       totalReviewed: 7,
       masteredCount: 1,
       streakDays: 2,
+      dailyCharacterGoal: 5,
       lastPracticedAt: new Date(),
     },
     vocabulary: [
@@ -126,6 +128,7 @@ async function seedAccount(account) {
             totalReviewed: account.progress.totalReviewed,
             masteredCount: account.progress.masteredCount,
             streakDays: account.progress.streakDays,
+            dailyCharacterGoal: account.progress.dailyCharacterGoal,
             lastPracticedAt: account.progress.lastPracticedAt,
           },
           create: {
@@ -133,6 +136,7 @@ async function seedAccount(account) {
             totalReviewed: account.progress.totalReviewed,
             masteredCount: account.progress.masteredCount,
             streakDays: account.progress.streakDays,
+            dailyCharacterGoal: account.progress.dailyCharacterGoal,
             lastPracticedAt: account.progress.lastPracticedAt,
           },
         },
@@ -141,6 +145,9 @@ async function seedAccount(account) {
         deleteMany: {},
       },
       writingSessions: {
+        deleteMany: {},
+      },
+      characterProgress: {
         deleteMany: {},
       },
     },
@@ -157,6 +164,7 @@ async function seedAccount(account) {
           totalReviewed: account.progress.totalReviewed,
           masteredCount: account.progress.masteredCount,
           streakDays: account.progress.streakDays,
+          dailyCharacterGoal: account.progress.dailyCharacterGoal,
           lastPracticedAt: account.progress.lastPracticedAt,
         },
       },
@@ -240,6 +248,32 @@ async function seedAccount(account) {
   if (writingSessionData.length > 0 && "writingSession" in prisma) {
     await prisma.writingSession.createMany({
       data: writingSessionData,
+    });
+  }
+
+  const characterProgressData = user.vocabulary.flatMap((item, vocabularyIndex) =>
+    Array.from(item.chineseText)
+      .filter((character) => character.trim())
+      .map((character, characterIndex) => {
+        const completedCount = (vocabularyIndex + characterIndex) % 4;
+        const practiceCount = completedCount + 1;
+
+        return {
+          userId: user.id,
+          vocabularyId: item.id,
+          character,
+          characterIndex,
+          practiceCount,
+          completedCount,
+          mastered: completedCount >= 3,
+          lastPracticedAt: addMinutes(-((vocabularyIndex + 1) * 45 + characterIndex * 15)),
+        };
+      }),
+  );
+
+  if (characterProgressData.length > 0 && "characterProgress" in prisma) {
+    await prisma.characterProgress.createMany({
+      data: characterProgressData,
     });
   }
 }

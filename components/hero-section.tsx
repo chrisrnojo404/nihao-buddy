@@ -25,7 +25,7 @@ export function HeroSection() {
             <Link href="/register">Start learning</Link>
           </Button>
           <Button asChild size="lg" variant="outline">
-            <Link href="/translate">View translator shell</Link>
+            <Link href="/login?next=/translate">Open translator</Link>
           </Button>
         </div>
       </div>

@@ -14,8 +14,10 @@ export async function POST(request: NextRequest) {
 
   const translation = translateToMandarin(parsed.data.text);
 
-  if (!translation) {
-    return apiError("Translation not found in the beginner dictionary.", 404);
+  if (!translation || !translation.found) {
+    return apiError("Translation not found in the beginner dictionary yet.", 404, {
+      suggestions: translation?.suggestions ?? [],
+    });
   }
 
   return apiSuccess(translation);

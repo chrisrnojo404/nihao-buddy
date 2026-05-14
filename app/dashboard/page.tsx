@@ -3,6 +3,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePageUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+function toValidDate(value: Date | string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
+}
+
 export default async function DashboardPage() {
   const user = await requirePageUser();
   const now = new Date().getTime();
@@ -42,6 +56,20 @@ export default async function DashboardPage() {
       chineseText: string;
     };
   }> = [];
+  let recentCharacterProgress: Array<{
+    id: string;
+    vocabularyId: string;
+    character: string;
+    characterIndex: number;
+    practiceCount: number;
+    completedCount: number;
+    mastered: boolean;
+    updatedAt: Date;
+    vocabulary: {
+      englishText: string;
+      chineseText: string;
+    };
+  }> = [];
 
   if ("reviewLog" in prisma && prisma.reviewLog) {
     recentReviews = await prisma.reviewLog.findMany({
@@ -66,7 +94,7 @@ export default async function DashboardPage() {
       orderBy: {
         practicedAt: "desc",
       },
-      take: 12,
+      take: 120,
       include: {
         vocabulary: {
           select: {
@@ -77,31 +105,56 @@ export default async function DashboardPage() {
       },
     });
   }
+  if ("characterProgress" in prisma && prisma.characterProgress) {
+    recentCharacterProgress = await prisma.characterProgress.findMany({
+      where: { userId: user.id },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      include: {
+        vocabulary: {
+          select: {
+            englishText: true,
+            chineseText: true,
+          },
+        },
+      },
+    });
+  }
+  const dailyCharacterGoal = progress.dailyCharacterGoal ?? 5;
   const vocabularyCount = vocabulary.length;
   const dueCards = vocabulary.filter((item) => {
-    if (!item.nextReviewAt) {
+    const nextReviewAt = toValidDate(item.nextReviewAt);
+
+    if (!nextReviewAt) {
       return false;
     }
 
-    return new Date(item.nextReviewAt).getTime() <= now;
+    return nextReviewAt.getTime() <= now;
   });
   const upcomingCards = vocabulary.filter((item) => {
-    if (!item.nextReviewAt) {
+    const nextReviewAt = toValidDate(item.nextReviewAt);
+
+    if (!nextReviewAt) {
       return false;
     }
 
-    return new Date(item.nextReviewAt).getTime() > now;
+    return nextReviewAt.getTime() > now;
   });
   const nextDueCard = [...vocabulary]
-    .filter((item) => item.nextReviewAt)
+    .filter((item) => toValidDate(item.nextReviewAt))
     .sort(
       (left, right) =>
-        new Date(left.nextReviewAt as Date | string).getTime() -
-        new Date(right.nextReviewAt as Date | string).getTime(),
+        (toValidDate(left.nextReviewAt)?.getTime() ?? Number.POSITIVE_INFINITY) -
+        (toValidDate(right.nextReviewAt)?.getTime() ?? Number.POSITIVE_INFINITY),
     )[0];
   const reviewsToday = recentReviews.filter((entry) => {
-    const reviewedAt = new Date(entry.reviewedAt);
+    const reviewedAt = toValidDate(entry.reviewedAt);
     const today = new Date();
+
+    if (!reviewedAt) {
+      return false;
+    }
 
     return (
       reviewedAt.getFullYear() === today.getFullYear() &&
@@ -110,8 +163,12 @@ export default async function DashboardPage() {
     );
   }).length;
   const writingSessionsToday = recentWritingSessions.filter((entry) => {
-    const practicedAt = new Date(entry.practicedAt);
+    const practicedAt = toValidDate(entry.practicedAt);
     const today = new Date();
+
+    if (!practicedAt) {
+      return false;
+    }
 
     return (
       practicedAt.getFullYear() === today.getFullYear() &&
@@ -123,6 +180,51 @@ export default async function DashboardPage() {
     (total, entry) => total + entry.practicedCharacters,
     0,
   );
+  const writingDaysByDate = new Map<string, number>();
+  for (const entry of recentWritingSessions) {
+    const practicedAt = toValidDate(entry.practicedAt);
+
+    if (!practicedAt) {
+      continue;
+    }
+
+    const dateKey = practicedAt.toISOString().slice(0, 10);
+    writingDaysByDate.set(
+      dateKey,
+      (writingDaysByDate.get(dateKey) ?? 0) + entry.practicedCharacters,
+    );
+  }
+  let dailyGoalStreak = 0;
+  const streakCursor = new Date();
+  while (!Number.isNaN(streakCursor.getTime()) && dailyGoalStreak < 365) {
+    const key = streakCursor.toISOString().slice(0, 10);
+    const practicedCharacters = writingDaysByDate.get(key) ?? 0;
+
+    if (practicedCharacters < dailyCharacterGoal) {
+      break;
+    }
+
+    dailyGoalStreak += 1;
+    streakCursor.setDate(streakCursor.getDate() - 1);
+  }
+  const charactersCompletedToday = recentCharacterProgress.filter((entry) => {
+    const updatedAt = toValidDate(entry.updatedAt);
+    const today = new Date();
+
+    if (!updatedAt) {
+      return false;
+    }
+
+    return (
+      updatedAt.getFullYear() === today.getFullYear() &&
+      updatedAt.getMonth() === today.getMonth() &&
+      updatedAt.getDate() === today.getDate() &&
+      entry.completedCount > 0
+    );
+  }).length;
+  const masteredCharactersTotal = recentCharacterProgress.filter(
+    (entry) => entry.mastered,
+  ).length;
   const hardestWords = Object.values(
     recentReviews.reduce<Record<string, {
       englishText: string;
@@ -182,6 +284,81 @@ export default async function DashboardPage() {
         right.practicedCharacters - left.practicedCharacters,
     )
     .slice(0, 3);
+  const mostPracticedCharacters = Object.values(
+    recentCharacterProgress.reduce<Record<string, {
+      character: string;
+      practiceCount: number;
+      completedCount: number;
+      masteredInstances: number;
+    }>>((accumulator, entry) => {
+      const key = entry.character;
+
+      if (!accumulator[key]) {
+        accumulator[key] = {
+          character: entry.character,
+          practiceCount: 0,
+          completedCount: 0,
+          masteredInstances: 0,
+        };
+      }
+
+      accumulator[key].practiceCount += entry.practiceCount;
+      accumulator[key].completedCount += entry.completedCount;
+      accumulator[key].masteredInstances += entry.mastered ? 1 : 0;
+
+      return accumulator;
+    }, {}),
+  )
+    .sort(
+      (left, right) =>
+        right.practiceCount - left.practiceCount ||
+        right.completedCount - left.completedCount,
+    )
+    .slice(0, 5);
+  const phraseWritingStreaks = vocabulary
+    .map((item) => {
+      const itemCharacters = Array.from(item.chineseText).filter((character) => character.trim());
+      const progressByIndex = new Map(
+        recentCharacterProgress
+          .filter((entry) => entry.vocabularyId === item.id)
+          .map((entry) => [entry.characterIndex, entry] as const),
+      );
+      const completedCharacters = itemCharacters.filter((_, index) => {
+        const entry = progressByIndex.get(index);
+        return Boolean(entry && entry.completedCount > 0);
+      }).length;
+      const masteredCharacters = itemCharacters.filter((_, index) => {
+        const entry = progressByIndex.get(index);
+        return Boolean(entry?.mastered);
+      }).length;
+      const completionStreak = itemCharacters.reduce((streak, _, index) => {
+        const entry = progressByIndex.get(index);
+
+        if (!entry || entry.completedCount <= 0 || streak !== index) {
+          return streak;
+        }
+
+        return streak + 1;
+      }, 0);
+
+      return {
+        id: item.id,
+        englishText: item.englishText,
+        chineseText: item.chineseText,
+        totalCharacters: itemCharacters.length,
+        completedCharacters,
+        masteredCharacters,
+        completionStreak,
+      };
+    })
+    .filter((item) => item.totalCharacters > 0)
+    .sort(
+      (left, right) =>
+        right.completionStreak - left.completionStreak ||
+        right.masteredCharacters - left.masteredCharacters ||
+        right.completedCharacters - left.completedCharacters,
+    )
+    .slice(0, 4);
 
   const dashboardMetrics = [
     {
@@ -195,14 +372,24 @@ export default async function DashboardPage() {
       description: "Cards due for review right now are ordered first in flashcard study.",
     },
     {
-      label: "Mastered",
+      label: "Mastered words",
       value: String(progress.masteredCount),
-      description: "Longer review intervals now drive mastery rather than a manual toggle alone.",
+      description: "Longer review intervals now drive vocabulary mastery instead of a manual toggle alone.",
     },
     {
       label: "Writing today",
       value: String(writingSessionsToday.length),
       description: "Phrase practice sessions from Hanzi Writer now show up in your progress story.",
+    },
+    {
+      label: "Goal streak",
+      value: String(dailyGoalStreak),
+      description: `You are targeting ${dailyCharacterGoal} characters per day in the writing studio.`,
+    },
+    {
+      label: "Mastered Hanzi",
+      value: String(masteredCharactersTotal),
+      description: "Character mastery now grows separately from phrase-level writing sessions.",
     },
   ];
 
@@ -222,7 +409,7 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
           {dashboardMetrics.map((metric) => (
             <Card
               key={metric.label}
@@ -266,6 +453,10 @@ export default async function DashboardPage() {
             </p>
             <p>Review decisions today: {reviewsToday}</p>
             <p>Characters practiced today: {writingCharactersToday}</p>
+            <p>Characters completed today: {charactersCompletedToday}</p>
+            <p>Mastered Hanzi tracked: {masteredCharactersTotal}</p>
+            <p>Daily Hanzi goal: {dailyCharacterGoal}</p>
+            <p>Writing goal streak: {dailyGoalStreak} day(s)</p>
           </CardContent>
         </Card>
 
@@ -426,6 +617,126 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         </section>
+
+        <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+          <Card className="border-white/60 bg-white/85 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+            <CardHeader>
+              <p className="text-sm uppercase tracking-[0.28em] text-slate-500">
+                Character Progress
+              </p>
+              <CardTitle className="mt-2 text-3xl text-slate-950">
+                Your latest Hanzi completions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {recentCharacterProgress.length ? (
+                recentCharacterProgress.slice(0, 6).map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-slate-50/70 px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-2xl font-semibold text-slate-950">
+                        {entry.character}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {entry.vocabulary.englishText} · {entry.vocabulary.chineseText}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-red-700">
+                        {entry.completedCount} completion{entry.completedCount === 1 ? "" : "s"}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {entry.mastered ? "Mastered" : `${entry.practiceCount} total practice logs`}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm leading-7 text-slate-500">
+                  Mark characters complete from the writing page and they&apos;ll show up here.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-white/60 bg-white/85 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+            <CardHeader>
+              <p className="text-sm uppercase tracking-[0.28em] text-slate-500">
+                Most Practiced Hanzi
+              </p>
+              <CardTitle className="mt-2 text-3xl text-slate-950">
+                Characters getting the most repetition
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {mostPracticedCharacters.length ? (
+                mostPracticedCharacters.map((entry) => (
+                  <div
+                    key={entry.character}
+                    className="rounded-2xl border border-slate-200/80 bg-slate-50/70 px-4 py-3"
+                  >
+                    <p className="text-3xl font-semibold text-slate-950">
+                      {entry.character}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {entry.practiceCount} practice log(s), {entry.completedCount} completion mark(s)
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      Mastered in {entry.masteredInstances} phrase position{entry.masteredInstances === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm leading-7 text-slate-500">
+                  Your most-practiced characters will appear after a few writing updates.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        <Card className="border-white/60 bg-white/85 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+          <CardHeader>
+            <p className="text-sm uppercase tracking-[0.28em] text-slate-500">
+              Phrase Streaks
+            </p>
+            <CardTitle className="mt-2 text-3xl text-slate-950">
+              Saved phrases closest to full writing completion
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {phraseWritingStreaks.length ? (
+              phraseWritingStreaks.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="rounded-2xl border border-slate-200/80 bg-slate-50/70 px-4 py-4"
+                >
+                  <p className="text-sm font-medium text-slate-900">
+                    {entry.englishText}
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-950">
+                    {entry.chineseText}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Completion streak: {entry.completionStreak}/{entry.totalCharacters}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    Started: {entry.completedCharacters}/{entry.totalCharacters} characters
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    Mastered: {entry.masteredCharacters}/{entry.totalCharacters} characters
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm leading-7 text-slate-500 md:col-span-2 xl:col-span-4">
+                Start marking characters complete in the writing studio and your phrase streaks will show up here.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AppShell>
   );

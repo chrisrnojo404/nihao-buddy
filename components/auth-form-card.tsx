@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,14 @@ type AuthFormCardProps = {
   successHref: string;
 };
 
+function getSafeRedirectPath(path: string | null | undefined) {
+  if (!path || !path.startsWith("/") || path.startsWith("//")) {
+    return null;
+  }
+
+  return path;
+}
+
 export function AuthFormCard({
   title,
   description,
@@ -40,6 +48,7 @@ export function AuthFormCard({
   successHref,
 }: AuthFormCardProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const initialValues = useMemo(
     () =>
       fields.reduce<Record<string, string>>((accumulator, field) => {
@@ -117,7 +126,8 @@ export function AuthFormCard({
         return;
       }
 
-      router.push(successHref);
+      const nextPath = getSafeRedirectPath(searchParams.get("next"));
+      router.push(nextPath ?? successHref);
       router.refresh();
     } catch {
       setError("Unable to reach the server right now.");

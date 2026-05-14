@@ -17,14 +17,35 @@ type VocabularyItem = {
   notes: string | null;
 };
 
+type CharacterProgressItem = {
+  id: string;
+  vocabularyId: string;
+  character: string;
+  characterIndex: number;
+  practiceCount: number;
+  completedCount: number;
+  mastered: boolean;
+  lastPracticedAt?: string | Date | null;
+};
+
 type WritingPracticeWorkspaceProps = {
   vocabulary: VocabularyItem[];
   initialPhraseId?: string;
+  initialCharacterProgress: CharacterProgressItem[];
+  initialDailyCharacterGoal: number;
+  initialTodayCharacterCount: number;
+  initialGoalStreak: number;
 };
+
+const CHARACTER_MASTERY_TARGET = 3;
 
 export function WritingPracticeWorkspace({
   vocabulary,
   initialPhraseId,
+  initialCharacterProgress,
+  initialDailyCharacterGoal,
+  initialTodayCharacterCount,
+  initialGoalStreak,
 }: WritingPracticeWorkspaceProps) {
   const [selectedPhraseId, setSelectedPhraseId] = useState(
     initialPhraseId && vocabulary.some((item) => item.id === initialPhraseId)
@@ -36,6 +57,11 @@ export function WritingPracticeWorkspace({
   const [errorMessage, setErrorMessage] = useState("");
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [sessionCount, setSessionCount] = useState(0);
+  const [isSavingCharacter, setIsSavingCharacter] = useState(false);
+  const [characterProgress, setCharacterProgress] = useState(initialCharacterProgress);
+  const [dailyCharacterGoal] = useState(initialDailyCharacterGoal);
+  const [todayCharacterCount, setTodayCharacterCount] = useState(initialTodayCharacterCount);
+  const [goalStreak, setGoalStreak] = useState(initialGoalStreak);
 
   const selectedPhrase =
     vocabulary.find((item) => item.id === selectedPhraseId) ?? vocabulary[0] ?? null;
@@ -49,12 +75,106 @@ export function WritingPracticeWorkspace({
   );
 
   const selectedCharacter = characters[selectedCharacterIndex] ?? characters[0] ?? "";
+  const activeCharacterProgress =
+    characterProgress.find(
+      (entry) =>
+        entry.vocabularyId === selectedPhrase?.id &&
+        entry.characterIndex === selectedCharacterIndex,
+    ) ?? null;
+  const masteredCharactersCount = characterProgress.filter(
+    (entry) => entry.vocabularyId === selectedPhrase?.id && entry.mastered,
+  ).length;
+  const completedCharactersCount = characterProgress.filter(
+    (entry) =>
+      entry.vocabularyId === selectedPhrase?.id && entry.completedCount > 0,
+  ).length;
+  const phraseCompletionStreak = characters.reduce((streak, _, index) => {
+    const progress = characterProgress.find(
+      (entry) =>
+        entry.vocabularyId === selectedPhrase?.id &&
+        entry.characterIndex === index &&
+        entry.completedCount > 0,
+    );
+
+    if (!progress || streak !== index) {
+      return streak;
+    }
+
+    return streak + 1;
+  }, 0);
+  const dailyGoalRemaining = Math.max(dailyCharacterGoal - todayCharacterCount, 0);
+  const dailyGoalMet = todayCharacterCount >= dailyCharacterGoal;
 
   function choosePhrase(id: string) {
     setSelectedPhraseId(id);
     setSelectedCharacterIndex(0);
     setStatusMessage("");
     setErrorMessage("");
+  }
+
+  async function updateCharacterProgress(action: "practice" | "complete") {
+    if (!selectedPhrase || !selectedCharacter) {
+      return;
+    }
+
+    setIsSavingCharacter(true);
+    setStatusMessage("");
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("/api/progress/characters", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          vocabularyId: selectedPhrase.id,
+          character: selectedCharacter,
+          characterIndex: selectedCharacterIndex,
+          action,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        data?: {
+          characterProgress: CharacterProgressItem;
+          masteryTarget: number;
+        };
+      };
+
+      if (!response.ok || !payload.data) {
+        setErrorMessage(payload.error ?? "Unable to save character progress.");
+        return;
+      }
+
+      const updatedCharacterProgress = payload.data.characterProgress;
+      setCharacterProgress((current) => {
+        const existingIndex = current.findIndex(
+          (entry) =>
+            entry.vocabularyId === updatedCharacterProgress.vocabularyId &&
+            entry.characterIndex === updatedCharacterProgress.characterIndex,
+        );
+
+        if (existingIndex === -1) {
+          return [...current, updatedCharacterProgress];
+        }
+
+        return current.map((entry, index) =>
+          index === existingIndex ? updatedCharacterProgress : entry,
+        );
+      });
+
+      const completedLabel =
+        action === "complete"
+          ? `Marked ${selectedCharacter} complete. ${updatedCharacterProgress.completedCount}/${payload.data.masteryTarget} completions toward mastery.`
+          : `Logged extra practice for ${selectedCharacter}. Practice count is now ${updatedCharacterProgress.practiceCount}.`;
+      setStatusMessage(completedLabel);
+    } catch {
+      setErrorMessage("Unable to save character progress right now.");
+    } finally {
+      setIsSavingCharacter(false);
+    }
   }
 
   async function logWritingSession() {
@@ -87,6 +207,16 @@ export function WritingPracticeWorkspace({
         return;
       }
 
+      const practicedCharacters = Math.max(characters.length, 1);
+      setTodayCharacterCount((current) => {
+        const next = current + practicedCharacters;
+
+        if (current < dailyCharacterGoal && next >= dailyCharacterGoal) {
+          setGoalStreak((streak) => streak + 1);
+        }
+
+        return next;
+      });
       setSessionCount((current) => current + 1);
       setStatusMessage(
         `Saved a writing session for ${selectedPhrase.chineseText}. Dashboard analytics will reflect it now.`,
@@ -142,6 +272,9 @@ export function WritingPracticeWorkspace({
                 {characters.length} character{characters.length === 1 ? "" : "s"} in
                 this phrase. Sessions logged this visit: {sessionCount}
               </p>
+              <p>
+                {masteredCharactersCount}/{characters.length} characters mastered for this phrase
+              </p>
             </div>
             <Button
               type="button"
@@ -150,6 +283,31 @@ export function WritingPracticeWorkspace({
             >
               {isSavingSession ? "Saving..." : "Log practice session"}
             </Button>
+          </div>
+          <div className="grid gap-3 rounded-2xl border border-red-100 bg-red-50/60 px-4 py-4 text-sm text-red-950/75 md:grid-cols-2">
+            <p>
+              Daily Hanzi target:{" "}
+              <span className="font-semibold text-red-900">
+                {todayCharacterCount}/{dailyCharacterGoal}
+              </span>
+            </p>
+            <p>
+              Goal streak:{" "}
+              <span className="font-semibold text-red-900">
+                {goalStreak} day{goalStreak === 1 ? "" : "s"}
+              </span>
+            </p>
+            <p>
+              {dailyGoalMet
+                ? "You hit today’s writing target."
+                : `${dailyGoalRemaining} more character${dailyGoalRemaining === 1 ? "" : "s"} to reach today’s goal.`}
+            </p>
+            <p>
+              Phrase completion streak:{" "}
+              <span className="font-semibold text-red-900">
+                {phraseCompletionStreak}/{characters.length}
+              </span>
+            </p>
           </div>
           {statusMessage ? (
             <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -165,18 +323,89 @@ export function WritingPracticeWorkspace({
             character={selectedCharacter}
             strokeNames={strokeNamesByCharacter[selectedCharacter] ?? []}
           />
+          <div className="grid gap-3 rounded-2xl border border-red-100 bg-white/75 px-4 py-4 text-sm text-slate-600 sm:grid-cols-2">
+            <p>
+              Practice count:{" "}
+              <span className="font-semibold text-red-900">
+                {activeCharacterProgress?.practiceCount ?? 0}
+              </span>
+            </p>
+            <p>
+              Completion marks:{" "}
+              <span className="font-semibold text-red-900">
+                {activeCharacterProgress?.completedCount ?? 0}/{CHARACTER_MASTERY_TARGET}
+              </span>
+            </p>
+            <p>
+              Phrase progress:{" "}
+              <span className="font-semibold text-red-900">
+                {completedCharactersCount}/{characters.length} characters started
+              </span>
+            </p>
+            <p>
+              Mastery state:{" "}
+              <span className="font-semibold text-red-900">
+                {activeCharacterProgress?.mastered ? "Mastered" : "Learning"}
+              </span>
+            </p>
+            <p>
+              Last practiced:{" "}
+              <span className="font-semibold text-red-900">
+                {activeCharacterProgress?.lastPracticedAt
+                  ? new Date(activeCharacterProgress.lastPracticedAt).toLocaleDateString()
+                  : "Not yet"}
+              </span>
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSavingCharacter || !selectedCharacter}
+              onClick={() => updateCharacterProgress("practice")}
+            >
+              {isSavingCharacter ? "Saving..." : "Log extra practice"}
+            </Button>
+            <Button
+              type="button"
+              disabled={isSavingCharacter || !selectedCharacter}
+              onClick={() => updateCharacterProgress("complete")}
+            >
+              {isSavingCharacter ? "Saving..." : "Mark character complete"}
+            </Button>
+          </div>
           <div className="flex flex-wrap gap-2">
-            {characters.map((character, index) => (
-              <Button
-                key={`${selectedPhrase?.id}-${character}-${index}`}
-                type="button"
-                variant={index === selectedCharacterIndex ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedCharacterIndex(index)}
-              >
-                {character}
-              </Button>
-            ))}
+            {characters.map((character, index) => {
+              const progress =
+                characterProgress.find(
+                  (entry) =>
+                    entry.vocabularyId === selectedPhrase?.id &&
+                    entry.characterIndex === index,
+                ) ?? null;
+
+              const label = progress?.mastered
+                ? `${character} mastered`
+                : progress?.completedCount
+                  ? `${character} ${progress.completedCount}/${CHARACTER_MASTERY_TARGET}`
+                  : character;
+
+              return (
+                <Button
+                  key={`${selectedPhrase?.id}-${character}-${index}`}
+                  type="button"
+                  variant={index === selectedCharacterIndex ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedCharacterIndex(index)}
+                  className={
+                    progress?.mastered && index !== selectedCharacterIndex
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                      : undefined
+                  }
+                >
+                  {label}
+                </Button>
+              );
+            })}
           </div>
         </CardContent>
       </Card>

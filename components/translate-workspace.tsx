@@ -12,6 +12,14 @@ type TranslationResult = {
   chinese: string;
   pinyin: string;
   characters: string[];
+  matchedBy: "exact" | "combined" | "template";
+  category: "word" | "phrase";
+};
+
+type TranslationSuggestion = {
+  english: string;
+  chinese: string;
+  pinyin: string;
 };
 
 export function TranslateWorkspace() {
@@ -19,6 +27,7 @@ export function TranslateWorkspace() {
   const [notes, setNotes] = useState("");
   const [result, setResult] = useState<TranslationResult | null>(null);
   const [error, setError] = useState("");
+  const [suggestions, setSuggestions] = useState<TranslationSuggestion[]>([]);
   const [saveMessage, setSaveMessage] = useState("");
   const [isTranslating, setIsTranslating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -31,6 +40,7 @@ export function TranslateWorkspace() {
     setIsTranslating(true);
     setError("");
     setSaveMessage("");
+    setSuggestions([]);
 
     try {
       const response = await fetch("/api/translate", {
@@ -44,11 +54,15 @@ export function TranslateWorkspace() {
       const payload = (await response.json()) as {
         data?: TranslationResult;
         error?: string;
+        details?: {
+          suggestions?: TranslationSuggestion[];
+        };
       };
 
       if (!response.ok || !payload.data) {
         setResult(null);
         setError(payload.error ?? "Unable to translate that phrase.");
+        setSuggestions(payload.details?.suggestions ?? []);
         return;
       }
 
@@ -56,6 +70,7 @@ export function TranslateWorkspace() {
     } catch {
       setResult(null);
       setError("Unable to reach the translation service.");
+      setSuggestions([]);
     } finally {
       setIsTranslating(false);
     }
@@ -147,9 +162,29 @@ export function TranslateWorkspace() {
             />
           </div>
           {error ? (
-            <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </p>
+            <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <p>{error}</p>
+              {suggestions.length ? (
+                <div className="space-y-2">
+                  <p className="font-medium text-red-800">Try one of these instead:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestions.map((suggestion) => (
+                      <button
+                        key={`${suggestion.english}-${suggestion.chinese}`}
+                        type="button"
+                        onClick={() => {
+                          setEnglish(suggestion.english);
+                          setError("");
+                        }}
+                        className="rounded-full border border-red-200 bg-white/90 px-3 py-2 text-left text-xs font-medium text-red-800 transition hover:bg-red-100"
+                      >
+                        {suggestion.english}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           ) : null}
           {saveMessage ? (
             <p className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -178,6 +213,13 @@ export function TranslateWorkspace() {
                 <p className="text-sm text-red-950/55">{result.english}</p>
                 <p className="mt-2 text-5xl font-semibold">{result.chinese}</p>
                 <p className="mt-2 text-lg text-red-700">{result.pinyin}</p>
+                <p className="mt-3 text-sm text-red-950/60">
+                  {result.matchedBy === "exact"
+                    ? `Matched as a beginner ${result.category}.`
+                    : result.matchedBy === "template"
+                      ? "Built from a reusable beginner phrase pattern."
+                      : "Built from multiple beginner dictionary words."}
+                </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 {result.characters.map((character) => (
@@ -205,9 +247,9 @@ export function TranslateWorkspace() {
             </>
           ) : (
             <p className="text-sm leading-7 text-red-950/70">
-              Supported starter phrases include hello, good morning, thank you,
-              goodbye, yes, no, water, food, school, student, teacher, friend,
-              family, china, and suriname.
+              Try beginner words and phrases like hello, how are you, thank you,
+              good evening, i am from suriname, where is the school, i want tea,
+              family, school, teacher, friend, china, and suriname.
             </p>
           )}
         </CardContent>

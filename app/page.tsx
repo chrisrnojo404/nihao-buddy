@@ -32,7 +32,7 @@ export default function Home() {
                 </CardTitle>
               </div>
               <Button asChild variant="outline">
-                <Link href="/translate">Open translator</Link>
+                <Link href="/login?next=/translate">Open translator</Link>
               </Button>
             </CardHeader>
             <CardContent className="grid gap-3">
@@ -92,7 +92,7 @@ export default function Home() {
                 the core pages we&apos;ll keep building on.
               </p>
               <Button asChild className="bg-red-600 text-white hover:bg-red-500">
-                <Link href="/dashboard">Explore the dashboard shell</Link>
+                <Link href="/login?next=/dashboard">Open dashboard</Link>
               </Button>
             </CardContent>
           </Card>

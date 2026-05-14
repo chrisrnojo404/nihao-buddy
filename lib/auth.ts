@@ -23,6 +23,14 @@ export type SessionUser = {
   email: string;
 };
 
+export function getSafeRedirectPath(path: string | null | undefined) {
+  if (!path || !path.startsWith("/") || path.startsWith("//")) {
+    return null;
+  }
+
+  return path;
+}
+
 export async function hashPassword(password: string) {
   return bcrypt.hash(password, 12);
 }
@@ -93,10 +101,10 @@ export async function requirePageUser() {
   return user;
 }
 
-export async function redirectIfAuthenticated() {
+export async function redirectIfAuthenticated(nextPath?: string | null) {
   const user = await getSessionUser();
 
   if (user) {
-    redirect("/dashboard");
+    redirect(getSafeRedirectPath(nextPath) ?? "/dashboard");
   }
 }

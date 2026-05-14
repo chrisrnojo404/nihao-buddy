@@ -1,13 +1,22 @@
-import { redirectIfAuthenticated } from "@/lib/auth";
+import { getSafeRedirectPath, redirectIfAuthenticated } from "@/lib/auth";
 import { AuthFormCard } from "@/components/auth-form-card";
 
-export default async function RegisterPage() {
-  await redirectIfAuthenticated();
+export default async function RegisterPage({
+  searchParams,
+}: PageProps<"/register">) {
+  const { next } = await searchParams;
+  const nextPath = typeof next === "string" ? getSafeRedirectPath(next) : null;
+
+  await redirectIfAuthenticated(nextPath);
 
   return (
     <AuthFormCard
       title="Create your nihao buddy account"
-      description="This foundation page is ready for the registration flow in the next phase."
+      description={
+        nextPath
+          ? "Create your account to continue to the study page you selected."
+          : "This foundation page is ready for the registration flow in the next phase."
+      }
       submitLabel="Create account"
       fields={[
         { id: "name", label: "Name", placeholder: "Alicia Tjong" },
